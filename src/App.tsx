@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Folder, FolderPlus, FilePlus2, Search, Settings2, PanelLeftClose, PanelLeftOpen, Columns2,
   Eye, Pencil, MoreHorizontal, Sun, Moon, Trash2, Pin, ChevronRight, ChevronDown, FileText,
-  List, WandSparkles, Presentation, Download, X, Check, Loader2, Clock3, FolderOpen,
-  Bold, Italic, Link, Code, Quote, ListTodo, Maximize2, Menu, ArrowUpDown, RotateCcw, Type } from 'lucide-react';
+  List, Presentation, Download, X, Check, Loader2, Clock3, FolderOpen,
+  Bold, Italic, Link, Code, Quote, ListTodo, Maximize2, Menu, ArrowUpDown, RotateCcw, Type,
+  Star, Tag, SlidersHorizontal, Minus, Square } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -13,10 +14,28 @@ import { defaults, desktop, request, SaveQueue, parentPath, baseName, type Docum
 import { headings, snippets, toggleTaskLine, wikiTargets } from './markdown';
 import { exportDocument } from './export';
 
-const welcome = '# 让想法发光\n\n欢迎来到 Luma Notes。这里是一个安静、快速、完全属于你的写作空间。\n\n把灵感放进文件夹，用 Markdown 把零散的想法串成自己的知识地图。\n\n## 现在开始\n\n- 选择一个本地文件夹作为你的 Luma Space\n- 用 **Markdown** 写下任何值得留下的东西\n- 用 `[[笔记名称]]` 连接你的想法\n- 在预览、演示或专注模式之间自由切换\n\n> Small thoughts. Bright ideas.\n';
+const welcome = '# 让想法发光\n\n写作，是与自己保持联系的方式。\n\n把零散的想法放进这里，让它们慢慢长成自己的形状。\n\n在这个快节奏的世界里，我们总是被各种信息推着向前。\n而写作，让我有机会停下来，认真地听一听自己内心的声音。\n那些看似微小的想法、情绪和灵感，都是构成自我的重要碎片。\n\n> 一个更清晰的自己，\n> 始于认真记录下的每一个想法。\n\n## 今日清单\n\n- [x] 整理项目思路\n- [ ] 补充设计细节\n- [ ] 阅读一本好书\n';
 const welcomeDoc: Document = { path: '', name: '开始使用 Luma', content: welcome, revision: '', modified: 0, created: 0 };
-const dateLabel = (value: number) => value ? new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '';
-const summary = (text = '') => text.replace(/^---[\s\S]*?---/, '').replace(/[#*`>\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 72);
+const demoDoc: Document = { ...welcomeDoc, path: '让想法发光.md', name: '让想法发光.md', revision: 'preview', modified: Date.now(), created: Date.now(), content: welcome };
+const demoNotes: Note[] = [
+  demoDoc,
+  { path: '产品设计灵感.md', name: '产品设计灵感.md', modified: Date.now() - 86400000, created: Date.now() - 86400000, content: '# 产品设计灵感\n\n好的设计，源于对生活的细致观察。' },
+  { path: '阅读笔记：人类简史.md', name: '阅读笔记：人类简史.md', modified: Date.now() - 86400000 * 24, created: Date.now() - 86400000 * 24, content: '# 阅读笔记：人类简史\n\n历史不是过去的事，而是理解当下。' },
+  { path: '旅行清单.md', name: '旅行清单.md', modified: Date.now() - 86400000 * 27, created: Date.now() - 86400000 * 27, content: '# 旅行清单\n\n永远保留一份去看世界的冲动。' },
+  { path: '生活碎片.md', name: '生活碎片.md', modified: Date.now() - 86400000 * 29, created: Date.now() - 86400000 * 29, content: '# 生活碎片\n\n一些值得记录的日常瞬间。' },
+];
+const demoWorkspace: Workspace = { root: 'Luma Space', folders: [], notes: demoNotes };
+const dateLabel = (value: number) => value ? new Date(value).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '';
+const timeLabel = (value: number) => value ? new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+const groupLabel = (value: number) => {
+  const date = new Date(value); const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  if (day === today) return '今天';
+  if (day === today - 86400000) return '昨天';
+  return `${date.getMonth() + 1}月`;
+};
+const summary = (text = '') => text.replace(/^---[\s\S]*?---/, '').replace(/^\s*#\s+.*(?:\r?\n|$)/, '').replace(/[#*`>\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 72);
 type Dialog = { title: string; message?: string; value?: string; danger?: boolean; resolve: (value: string | null) => void };
 
 function IconButton({ title, children, onClick, active, disabled }: { title: string; children: ReactNode; onClick: () => void; active?: boolean; disabled?: boolean }) {
@@ -24,8 +43,9 @@ function IconButton({ title, children, onClick, active, disabled }: { title: str
 }
 
 export default function App() {
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [doc, setDoc] = useState<Document>(welcomeDoc);
+  const initialDoc = desktop ? welcomeDoc : demoDoc;
+  const [workspace, setWorkspace] = useState<Workspace | null>(desktop ? null : demoWorkspace);
+  const [doc, setDoc] = useState<Document>(initialDoc);
   const [content, setContent] = useState(welcome);
   const [settings, setSettings] = useState<Settings>(defaults);
   const [ready, setReady] = useState(false);
@@ -48,8 +68,10 @@ export default function App() {
   const [ppt, setPpt] = useState(false);
   const [menu, setMenu] = useState(false);
   const [formatMenu, setFormatMenu] = useState(false);
+  const [foldersOpen, setFoldersOpen] = useState(false);
+  const [selectionToolbar, setSelectionToolbar] = useState<{ left: number; top: number } | null>(null);
   const [systemDark, setSystemDark] = useState(matchMedia('(prefers-color-scheme: dark)').matches);
-  const session = useRef({ doc: welcomeDoc, content: welcome, dirty: false });
+  const session = useRef({ doc: initialDoc, content: welcome, dirty: false });
   const queue = useRef(new SaveQueue());
   const editor = useRef<EditorHandle>(null);
   const preview = useRef<PreviewHandle>(null);
@@ -81,8 +103,9 @@ export default function App() {
     setSettings(s => ({ ...s, lastNote: value.path }));
   };
   const change = (text: string) => {
-    session.current.content = text; session.current.dirty = true;
-    setContent(text); setDirty(true);
+    session.current.content = text;
+    if (!desktop) { session.current.dirty = false; setContent(text); setDirty(false); return; }
+    session.current.dirty = true; setContent(text); setDirty(true);
   };
   const flush = useCallback(() => queue.current.run(async () => {
     setSaving(true);
@@ -110,11 +133,23 @@ export default function App() {
   };
   const openNote = async (path: string) => run(async () => {
     if (path === session.current.doc.path) return;
+    if (!desktop) {
+      const note = demoNotes.find(item => item.path === path);
+      if (note) applyDocument({ ...note, revision: 'preview', content: note.content || '' });
+      return;
+    }
     await flush(); const id = ++generation.current;
     const value = await request<Document>('read', { path });
     if (id === generation.current) applyDocument(value);
     setPpt(false);
   });
+  const windowAction = (action: 'minimize' | 'maximize' | 'close') => {
+    if (!desktop) return;
+    const win = getCurrentWindow();
+    if (action === 'minimize') void win.minimize();
+    else if (action === 'maximize') void win.toggleMaximize();
+    else void win.close();
+  };
   const chooseWorkspace = () => run(async () => {
     await flush(); const ws = await request<Workspace | null>('choose_workspace');
     if (ws) { setWorkspace(ws); setFolder('*'); applyDocument(welcomeDoc); }
@@ -248,9 +283,15 @@ export default function App() {
     window.addEventListener('keydown', keydown); return () => window.removeEventListener('keydown', keydown);
   });
   const visible = (workspace?.notes || []).filter(note =>
-    (folder === '*' || parentPath(note.path) === folder) && (!search || `${note.name}\n${note.content || ''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
+    (folder === '*' || folder === '.favorites' && settings.pinned.includes(note.path) || parentPath(note.path) === folder) && (!search || `${note.name}\n${note.content || ''}`.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
   ).sort((a, b) => Number(settings.pinned.includes(b.path)) - Number(settings.pinned.includes(a.path)) ||
     (settings.sort === 'name' ? a.name.localeCompare(b.name, 'zh-CN') : a[settings.sort] - b[settings.sort]) * (settings.ascending ? 1 : -1));
+  const noteGroups = visible.reduce<{ label: string; notes: Note[] }[]>((groups, note) => {
+    const label = groupLabel(note.modified);
+    const current = groups[groups.length - 1];
+    if (current?.label === label) current.notes.push(note); else groups.push({ label, notes: [note] });
+    return groups;
+  }, []);
   const backlinks = workspace?.notes.filter(n => n.path !== doc.path && wikiTargets(n.content || '').some(target => target === doc.name.replace(/\.md$/i, '') || target === doc.path.replace(/\.md$/i, ''))) || [];
   const outline = headings(content);
   const css = { '--sidebar-width': `${settings.sidebarWidth}px`, '--list-width': `${settings.listWidth}px`, '--interface-font': settings.interfaceFont } as CSSProperties;
@@ -261,48 +302,51 @@ export default function App() {
     const up = () => { target.removeEventListener('pointermove', move); target.removeEventListener('pointerup', up); };
     target.addEventListener('pointermove', move); target.addEventListener('pointerup', up);
   };
+  const listTitle = folder === '*' ? '全部笔记' : folder === '.favorites' ? '收藏' : folder === '.trash' ? '回收站' : baseName(folder);
   return <div className={`app ${dark ? 'dark' : ''} buttons-${settings.buttons} ${focus || ppt ? 'focused' : ''}`} style={css}>
-    <header className="titlebar"><span className="brand-mark">L</span><span className="brand-word">Luma <small>NOTES</small></span><span className="titlebar-center">{workspace ? baseName(workspace.root) : '让想法发光'}</span><span className="unofficial">LOCAL / PRIVATE</span></header>
+    <header className="titlebar" data-tauri-drag-region>
+      <div className="brand-lockup"><img className="brand-mark" src="/luma-mark.png" alt=""/><span className="brand-word">Luma Notes</span></div>
+      <label className="global-search"><Search size={17}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="搜索笔记、标签或内容…" aria-label="全局搜索"/>{search && <button onClick={() => setSearch('')} aria-label="清除搜索"><X size={14}/></button>}</label>
+      <div className="titlebar-actions"><IconButton title="偏好设置" onClick={() => setSettingsOpen(true)}><MoreHorizontal size={19}/></IconButton><span className="window-separator"/><button className="window-button" aria-label="最小化" onClick={() => windowAction('minimize')}><Minus size={16}/></button><button className="window-button" aria-label="最大化" onClick={() => windowAction('maximize')}><Square size={14}/></button><button className="window-button close" aria-label="关闭" onClick={() => windowAction('close')}><X size={17}/></button></div>
+    </header>
     {!desktop && <div className="browser-banner">界面预览 · 本地文件功能请通过 Windows 桌面应用使用</div>}
     <main className="workbench">
       {settings.showSidebar && !focus && !ppt && <><aside className="sidebar">
-        <div className="sidebar-heading"><span>YOUR SPACE</span><IconButton title="新建文件夹" onClick={createFolder} disabled={!workspace}><FolderPlus size={17}/></IconButton></div>
-        <button className={`folder-row ${folder === '*' ? 'selected' : ''}`} onClick={() => setFolder('*')}><FileText size={17}/><span>All notes</span><small>{workspace?.notes.length || 0}</small></button>
-        <div className="sidebar-label">COLLECTIONS</div>
-        <div className="folder-tree">{workspace?.folders.map(path => <button key={path} className={`folder-row ${folder === path ? 'selected' : ''}`} style={{ paddingLeft: 15 + path.split('/').length * 9 }} onClick={() => setFolder(path)} onContextMenu={event => { event.preventDefault(); void run(async () => {
+        <nav className="primary-nav" aria-label="笔记导航"><button className={`folder-row ${folder === '*' ? 'selected' : ''}`} onClick={() => setFolder('*')}><FileText size={18}/><span>全部笔记</span></button>
+        <button className={`folder-row ${folder === '.favorites' ? 'selected' : ''}`} onClick={() => setFolder('.favorites')}><Star size={18}/><span>收藏</span></button>
+        <button className={`folder-row ${foldersOpen ? 'selected' : ''}`} onClick={() => setFoldersOpen(value => !value)}><Tag size={18}/><span>标签</span><ChevronDown className={foldersOpen ? 'rotated' : ''} size={14}/></button>
+        {foldersOpen && <div className="folder-tree">{workspace?.folders.map(path => <button key={path} className={`folder-row nested ${folder === path ? 'selected' : ''}`} style={{ paddingLeft: 20 + path.split('/').length * 8 }} onClick={() => setFolder(path)} onContextMenu={event => { event.preventDefault(); void run(async () => {
           const choice = await prompt('文件夹操作', path, '修改路径以重命名或移动文件夹。'); if (!choice || choice === path) return;
           await flush(); await request('rename', { path, newPath: choice }); await refresh(); applyDocument(welcomeDoc); setFolder(choice);
-        }); }}><Folder size={16}/><span>{baseName(path)}</span></button>)}</div>
-        <button className={`folder-row trash-link ${folder === '.trash' ? 'selected' : ''}`} onClick={() => void run(async () => { await flush(); setTrash(await request('trash_list')); setFolder('.trash'); })}><Trash2 size={17}/><span>回收站</span></button>
-        <div className="sidebar-bottom"><button className="storage-button" onClick={chooseWorkspace} title={workspace?.root || '选择笔记目录'}><FolderOpen size={16}/><span>{workspace ? baseName(workspace.root) : '选择笔记文件夹'}</span></button>
-          <div className="sidebar-tools"><IconButton title="偏好设置 Ctrl+," onClick={() => setSettingsOpen(true)}><Settings2 size={17}/></IconButton><span>SYNCED LOCALLY</span><IconButton title="切换主题" onClick={() => setSettings(s => ({ ...s, theme: dark ? 'light' : 'dark' }))}>{dark ? <Sun size={16}/> : <Moon size={16}/>}</IconButton></div></div>
+        }); }}><Folder size={15}/><span>{baseName(path)}</span></button>)}</div>}
+        <button className={`folder-row ${folder === '.trash' ? 'selected' : ''}`} onClick={() => desktop ? void run(async () => { await flush(); setTrash(await request('trash_list')); setFolder('.trash'); }) : setFolder('.trash')}><Trash2 size={18}/><span>回收站</span></button></nav>
+        <div className="sidebar-bottom"><button className="settings-link" onClick={() => setSettingsOpen(true)}><Settings2 size={18}/><span>设置</span></button></div>
       </aside><div className="resize-handle" onPointerDown={event => resize('sidebarWidth', event)}/></>}
       {settings.showList && !focus && !ppt && <><section className="note-list">
-        <div className="list-heading"><div><span className="eyebrow">LUMA SPACE</span><h2>{folder === '*' ? 'All notes' : folder === '.trash' ? '回收站' : baseName(folder)}</h2></div><IconButton title="新建笔记 Ctrl+N" onClick={() => void createNote()} disabled={!workspace}><FilePlus2 size={18}/></IconButton></div>
-        <label className="search-box"><Search size={15}/><input ref={searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索笔记…" aria-label="搜索笔记"/>{search && <button onClick={() => setSearch('')} aria-label="清除搜索"><X size={13}/></button>}</label>
-        <div className="list-meta"><span>{folder === '.trash' ? trash.length : visible.length} 篇笔记</span><select aria-label="排序方式" value={settings.sort} onChange={e => setSettings(s => ({ ...s, sort: e.target.value as Settings['sort'] }))}><option value="modified">修改时间</option><option value="created">创建时间</option><option value="name">标题</option></select><button title="切换升降序" onClick={() => setSettings(s => ({ ...s, ascending: !s.ascending }))}><ArrowUpDown size={13}/></button></div>
-        <div className="note-cards">{folder === '.trash' ? trash.map(item => <div className="trash-card" key={item.id}><strong>{baseName(item.path)}</strong><small>{dateLabel(item.deleted)}</small><div><button onClick={() => void run(async () => { await request('trash_restore', { id: item.id }); setTrash(await request('trash_list')); await refresh(); })}>恢复</button><button onClick={() => void run(async () => { if (await confirm('移至系统回收站', '从应用回收站移除，之后可在 Windows 回收站找回。', true)) { await request('trash_delete', { id: item.id }); setTrash(await request('trash_list')); } })}>移除</button></div></div>) : visible.map(note => <button key={note.path} className={`note-card ${doc.path === note.path ? 'current' : ''} ${selected.includes(note.path) ? 'checked' : ''}`} onClick={event => {
+        <div className="list-heading"><h2>{listTitle}</h2><IconButton title="新建笔记 Ctrl+N" onClick={() => void createNote()} disabled={!workspace || !desktop}><FilePlus2 size={21}/></IconButton></div>
+        <div className="list-search-row"><label className="search-box"><Search size={16}/><input ref={searchInput} value={search} onChange={e => setSearch(e.target.value)} placeholder="搜索笔记…" aria-label="搜索笔记"/>{search && <button onClick={() => setSearch('')} aria-label="清除搜索"><X size={13}/></button>}</label><IconButton title={`排序：${settings.sort === 'modified' ? '修改时间' : settings.sort === 'created' ? '创建时间' : '标题'}`} onClick={() => setSettings(s => ({ ...s, sort: s.sort === 'modified' ? 'created' : s.sort === 'created' ? 'name' : 'modified' }))}><SlidersHorizontal size={17}/></IconButton></div>
+        <div className="note-cards">{folder === '.trash' ? trash.map(item => <div className="trash-card" key={item.id}><strong>{baseName(item.path)}</strong><small>{dateLabel(item.deleted)}</small><div><button onClick={() => void run(async () => { await request('trash_restore', { id: item.id }); setTrash(await request('trash_list')); await refresh(); })}>恢复</button><button onClick={() => void run(async () => { if (await confirm('移至系统回收站', '从应用回收站移除，之后可在 Windows 回收站找回。', true)) { await request('trash_delete', { id: item.id }); setTrash(await request('trash_list')); } })}>移除</button></div></div>) : noteGroups.map(group => <Fragment key={group.label}><div className="note-group-label">{group.label}</div>{group.notes.map(note => <button key={note.path} className={`note-card ${doc.path === note.path ? 'current' : ''} ${selected.includes(note.path) ? 'checked' : ''}`} onClick={event => {
           if (event.ctrlKey) setSelected(paths => paths.includes(note.path) ? paths.filter(p => p !== note.path) : [...paths, note.path]); else void openNote(note.path);
-        }}><div className="note-card-title">{settings.pinned.includes(note.path) && <Pin size={12}/>}<strong>{note.name.replace(/\.md$/i, '')}</strong></div><p>{summary(note.content) || '还没有内容'}</p><div><time>{dateLabel(note.modified)}</time><span>{parentPath(note.path) ? baseName(parentPath(note.path)) : '笔记'}</span></div></button>)}
+        }}><div className="note-card-title">{settings.pinned.includes(note.path) && <Pin size={12}/>}<strong>{note.name.replace(/\.md$/i, '')}</strong><time>{group.label === '今天' ? `今天 ${timeLabel(note.modified)}` : group.label === '昨天' ? `昨天 ${timeLabel(note.modified)}` : dateLabel(note.modified)}</time></div><p>{summary(note.content) || '还没有内容'}</p></button>)}</Fragment>)}
         {!visible.length && folder !== '.trash' && <div className="empty-list"><Pencil size={24}/><p>{search ? '没有找到相关笔记' : '从第一篇笔记开始'}</p><button onClick={() => workspace ? void createNote() : chooseWorkspace()}>{workspace ? '新建笔记' : '选择文件夹'}</button></div>}</div>
       </section><div className="resize-handle" onPointerDown={event => resize('listWidth', event)}/></>}
       <section className="document-area">
-        <div className="document-toolbar"><div className="toolbar-group"><IconButton title="切换文件夹 Ctrl+1" onClick={() => setSettings(s => ({ ...s, showSidebar: !s.showSidebar }))}>{settings.showSidebar ? <PanelLeftClose size={17}/> : <PanelLeftOpen size={17}/>}</IconButton><IconButton title="切换笔记列表 Ctrl+2" onClick={() => setSettings(s => ({ ...s, showList: !s.showList }))}><List size={18}/></IconButton><span className="toolbar-divider"/><span className="breadcrumb">{doc.path ? parentPath(doc.path) || '笔记' : '欢迎'}<ChevronRight size={12}/></span></div>
-          <div className="toolbar-group"><IconButton title="自动排版 Ctrl+Shift+L" onClick={format} disabled={!doc.path}><WandSparkles size={17}/></IconButton><div className="mode-switch">{([{ mode: 'edit', title: 'Markdown 源码', icon: <Pencil size={15}/> }, { mode: 'wysiwyg', title: '所见即所得', icon: <Type size={15}/> }, { mode: 'split', title: '分栏', icon: <Columns2 size={16}/> }, { mode: 'preview', title: '预览', icon: <Eye size={17}/> }] as const).map(item => <IconButton key={item.mode} title={item.title} active={settings.mode === item.mode} onClick={() => setSettings(s => ({ ...s, mode: item.mode }))}>{item.icon}</IconButton>)}</div><IconButton title="文档大纲 Ctrl+5" onClick={() => setToc(v => !v)} active={toc}><ListTodo size={17}/></IconButton><IconButton title="更多操作" onClick={() => setMenu(v => !v)}><MoreHorizontal size={20}/></IconButton></div>
-          {menu && <div className="dropdown document-menu"><button onClick={rename} disabled={!doc.path}>重命名 <kbd>Ctrl R</kbd></button><button onClick={() => void run(async () => { await flush(); const newPath = await prompt('复制笔记', doc.path.replace(/\.md$/i, ' 副本.md')); if (newPath) { const copy = await request<Document>('duplicate', { path: doc.path, newPath }); await refresh(); applyDocument(copy); } })} disabled={!doc.path}>创建副本</button><button onClick={() => void run(async () => { await flush(); const newPath = await prompt('移动笔记', doc.path, '输入相对于工作区的新路径'); if (newPath && newPath !== doc.path) { const value = await request<Document>('move', { path: doc.path, newPath }); await refresh(); applyDocument(value); } })} disabled={!doc.path}>移动到…</button><button onClick={() => { setSettings(s => ({ ...s, pinned: s.pinned.includes(doc.path) ? s.pinned.filter(p => p !== doc.path) : [...s.pinned, doc.path] })); setMenu(false); }} disabled={!doc.path}>置顶 / 取消置顶</button><hr/>
+        <div className="document-toolbar"><IconButton title="更多操作" onClick={() => setMenu(value => !value)}><MoreHorizontal size={21}/></IconButton>
+          {menu && <div className="dropdown document-menu"><div className="menu-label">编辑模式</div><button className={settings.mode === 'wysiwyg' ? 'selected' : ''} onClick={() => { setSettings(s => ({ ...s, mode: 'wysiwyg' })); setMenu(false); }}>所见即所得</button><button className={settings.mode === 'edit' ? 'selected' : ''} onClick={() => { setSettings(s => ({ ...s, mode: 'edit' })); setMenu(false); }}>Markdown 源码</button><button className={settings.mode === 'split' ? 'selected' : ''} onClick={() => { setSettings(s => ({ ...s, mode: 'split' })); setMenu(false); }}>分栏预览</button><hr/><button onClick={() => void format()} disabled={!doc.path}>自动排版 <kbd>Ctrl+Shift+L</kbd></button><button onClick={() => setToc(value => !value)}>文档大纲 <kbd>Ctrl+5</kbd></button><button onClick={rename} disabled={!doc.path}>重命名 <kbd>Ctrl R</kbd></button><button onClick={() => void run(async () => { await flush(); const newPath = await prompt('复制笔记', doc.path.replace(/\.md$/i, ' 副本.md')); if (newPath) { const copy = await request<Document>('duplicate', { path: doc.path, newPath }); await refresh(); applyDocument(copy); } })} disabled={!doc.path}>创建副本</button><button onClick={() => void run(async () => { await flush(); const newPath = await prompt('移动笔记', doc.path, '输入相对于工作区的新路径'); if (newPath && newPath !== doc.path) { const value = await request<Document>('move', { path: doc.path, newPath }); await refresh(); applyDocument(value); } })} disabled={!doc.path}>移动到…</button><button onClick={() => { setSettings(s => ({ ...s, pinned: s.pinned.includes(doc.path) ? s.pinned.filter(p => p !== doc.path) : [...s.pinned, doc.path] })); setMenu(false); }} disabled={!doc.path}>置顶 / 取消置顶</button><hr/>
             <button onClick={() => void run(async () => { await flush(); setHistory(await request('history', { path: doc.path })); setHistorySelection(0); })} disabled={!doc.path}>版本历史</button><button onClick={() => void run(async () => { if (session.current.dirty && !await confirm('重新加载', '未保存内容将被丢弃，是否继续？', true)) return; applyDocument(await request('read', { path: doc.path })); })} disabled={!doc.path}>重新加载</button><button onClick={() => void run(async () => { await request('reveal', { path: doc.path }); })}>在资源管理器中显示</button><button onClick={() => void navigator.clipboard.writeText(workspace ? `${workspace.root}\\${doc.path.replace(/\//g, '\\')}` : '').then(() => notify('路径已复制')).catch(fail)}>复制路径</button><hr/>
             <button onClick={() => void exportAs('html')}>导出 HTML</button><button onClick={() => void exportAs('png')}>导出图片</button><button onClick={() => void exportAs('pdf')}>{ppt ? '导出 PPT PDF' : '导出 PDF'}</button><button onClick={() => { setPpt(v => !v); setMenu(false); }}>Presentation mode</button><button onClick={() => { setFocus(v => !v); setMenu(false); }}>Focus mode</button><hr/><button className="danger" onClick={deleteNotes} disabled={!doc.path}>移入回收站</button><button onClick={() => { setSettingsOpen(true); setMenu(false); }}>偏好设置</button></div>}
         </div>
-        <div className="document-heading"><h1 onDoubleClick={doc.path ? rename : undefined}>{doc.name.replace(/\.md$/i, '')}</h1><span className="save-indicator">{saving ? <><Loader2 className="spin" size={12}/>保存中</> : dirty ? <><span className="dirty-dot"/>未保存</> : doc.path ? <><Check size={13}/>已保存到本地</> : '轻灵的 Markdown 笔记本'}</span></div>
+        <div className="document-heading"><h1 onDoubleClick={doc.path && desktop ? rename : undefined}>{doc.name.replace(/\.md$/i, '')}</h1><span className="save-indicator" title={saving ? '保存中' : dirty ? '尚未保存' : '已保存到本地'}>{saving ? '保存中…' : dirty ? '未保存' : doc.path ? `${groupLabel(doc.modified)} ${timeLabel(doc.modified)}` : '轻灵的 Markdown 笔记本'}</span></div>
         {(focus || ppt) && <button className="exit-focus" onClick={() => { setFocus(false); setPpt(false); }}>退出 {ppt ? 'PPT' : '专注'} · Esc</button>}
         <div className="editing-surface" style={{ flexDirection: settings.splitDirection }}>
-          <div className="editor-holder" style={{ display: settings.mode === 'preview' || ppt ? 'none' : 'flex' }}><Editor ref={editor} path={doc.path} content={content} settings={settings} dark={dark} readOnly={busy || !doc.path} wysiwyg={settings.mode === 'wysiwyg'} onChange={change} onFiles={onFiles} onScroll={ratio => preview.current?.scroll(ratio)}/></div>
+          <div className="editor-holder" style={{ display: settings.mode === 'preview' || ppt ? 'none' : 'flex' }}><Editor ref={editor} path={doc.path} content={content} settings={settings} dark={dark} readOnly={busy || !doc.path} wysiwyg={settings.mode === 'wysiwyg'} onChange={change} onFiles={onFiles} onScroll={ratio => preview.current?.scroll(ratio)} onSelectionChange={setSelectionToolbar}/></div>
           {(settings.mode === 'split' || settings.mode === 'preview' || ppt) && <Preview ref={preview} content={content} path={doc.path} settings={settings} dark={dark} ppt={ppt} onTask={line => { if (!navigating.current && doc.path) change(toggleTaskLine(session.current.content, line)); }} onWiki={openWiki} onScroll={ratio => editor.current?.scroll(ratio)} onError={fail}/>} 
           {toc && <aside className="outline"><div>文档大纲<button onClick={() => setToc(false)} aria-label="关闭大纲"><X size={14}/></button></div>{outline.map(item => <button key={item.line} style={{ paddingLeft: item.level * 10 }} onClick={() => { preview.current?.heading(item.line); editor.current?.heading(item.line); }}>{item.title}</button>)}{backlinks.length > 0 && <><div>反向链接</div>{backlinks.map(n => <button key={n.path} onClick={() => void openNote(n.path)}>{n.name}</button>)}</>}</aside>}
         </div>
-        <footer className="statusbar"><div className="format-tools"><IconButton title="粗体 Ctrl+B" onClick={() => editor.current?.format('**')}><Bold size={14}/></IconButton><IconButton title="斜体 Ctrl+I" onClick={() => editor.current?.format('*')}><Italic size={14}/></IconButton><IconButton title="插入链接" onClick={() => editor.current?.format('[', '](https://)')}><Link size={14}/></IconButton><IconButton title="行内代码" onClick={() => editor.current?.format('`')}><Code size={15}/></IconButton><IconButton title="快捷模板" onClick={() => setFormatMenu(v => !v)}><Menu size={14}/></IconButton>{formatMenu && <div className="dropdown snippet-menu">{Object.keys(snippets).map(key => <button key={key} onClick={() => { editor.current?.insert(snippets[key]); setFormatMenu(false); }}>/{key}</button>)}</div>}</div><div><span>{content.replace(/\s/g, '').length.toLocaleString()} 字</span><span>{content.split('\n').length} 行</span><span>Markdown</span><button title="专注模式" onClick={() => setFocus(v => !v)}><Maximize2 size={13}/></button></div></footer>
+        <footer className="statusbar"><span>{content.replace(/\s/g, '').length.toLocaleString()} 字</span></footer>
       </section>
     </main>
+    {selectionToolbar && settings.mode === 'wysiwyg' && <div className="selection-toolbar" style={{ left: selectionToolbar.left, top: selectionToolbar.top }}><IconButton title="粗体 Ctrl+B" onClick={() => editor.current?.format('**')}><Bold size={16}/></IconButton><IconButton title="斜体 Ctrl+I" onClick={() => editor.current?.format('*')}><Italic size={16}/></IconButton><IconButton title="插入链接" onClick={() => editor.current?.format('[', '](https://)')}><Link size={16}/></IconButton><IconButton title="行内代码" onClick={() => editor.current?.format('`')}><Code size={16}/></IconButton><IconButton title="更多格式" onClick={() => setFormatMenu(value => !value)}><MoreHorizontal size={17}/></IconButton>{formatMenu && <div className="dropdown snippet-menu">{Object.keys(snippets).map(key => <button key={key} onClick={() => { editor.current?.insert(snippets[key]); setFormatMenu(false); }}>/{key}</button>)}</div>}</div>}
     {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => void flush().then(() => setError('')).catch(fail)}>重试保存</button><button onClick={() => void run(async () => { await request('export_file', { name: doc.name || '恢复笔记.md', content: session.current.content }); notify('内容已另存'); })}>另存内容</button><button aria-label="关闭错误提示" onClick={() => setError('')}><X size={16}/></button></div>}
     {toast && <div className="toast" role="status"><Check size={15}/>{toast}</div>}
     {busy && <div className="busy-indicator"><Loader2 className="spin" size={14}/>处理中</div>}

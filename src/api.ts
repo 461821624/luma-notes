@@ -16,9 +16,9 @@ export interface Settings {
 }
 export const defaults: Settings = {
   theme: 'system', language: 'zh-Hans', editorFont: 'Microsoft YaHei', previewFont: 'Microsoft YaHei',
-  interfaceFont: 'Segoe UI', codeFont: 'Cascadia Code, Consolas', fontSize: 17, lineHeight: 1.85,
-  previewWidth: 860, wrap: true, mode: 'split', splitDirection: 'row', showSidebar: true,
-  showList: true, buttons: 'always', sidebarWidth: 200, listWidth: 260, pinned: [],
+  interfaceFont: 'Segoe UI', codeFont: 'Cascadia Code, Consolas', fontSize: 20, lineHeight: 1.8,
+  previewWidth: 860, wrap: true, mode: 'wysiwyg', splitDirection: 'row', showSidebar: true,
+  showList: true, buttons: 'always', sidebarWidth: 230, listWidth: 358, pinned: [],
   sort: 'modified', ascending: false, plantumlEnabled: false, plantumlEndpoint: 'https://www.plantuml.com/plantuml/svg/',
   uploadEndpoint: 'http://127.0.0.1:36677/upload', uploadEnabled: false, alwaysOnTop: false,
   activateShortcut: 'Ctrl+Alt+M', lastNote: '',

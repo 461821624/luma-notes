@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { EditorState, Compartment, RangeSetBuilder } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
+import { EditorState, Compartment } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, lineNumbers, highlightActiveLine, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, syntaxTree } from '@codemirror/language';
@@ -11,7 +11,7 @@ import type { Settings } from './api';
 export type EditorHandle = { insert: (text: string) => void; format: (before: string, after?: string) => void;
   scroll: (ratio: number) => void; focus: () => void; search: () => void; heading: (line: number) => void };
 type Props = { path: string; content: string; settings: Settings; dark: boolean; readOnly: boolean; onChange: (text: string) => void;
-  onScroll: (ratio: number) => void; onFiles: (files: File[]) => void; wysiwyg: boolean };
+  onScroll: (ratio: number) => void; onFiles: (files: File[]) => void; onSelectionChange: (position: { left: number; top: number } | null) => void; wysiwyg: boolean };
 
 const wysiwygMark = Decoration.mark({ class: 'cm-wysiwyg-mark' });
 const wysiwygStrong = Decoration.mark({ class: 'cm-wysiwyg-strong' });
@@ -19,6 +19,19 @@ const wysiwygEmphasis = Decoration.mark({ class: 'cm-wysiwyg-emphasis' });
 const wysiwygCode = Decoration.mark({ class: 'cm-wysiwyg-code' });
 const wysiwygLink = Decoration.mark({ class: 'cm-wysiwyg-link' });
 const wysiwygBlockCode = Decoration.mark({ class: 'cm-wysiwyg-block-code' });
+const wysiwygQuote = Decoration.line({ class: 'cm-wysiwyg-quote' });
+const wysiwygBlank = Decoration.line({ class: 'cm-wysiwyg-blank' });
+const wysiwygTitleGap = Decoration.line({ class: 'cm-wysiwyg-title-gap' });
+class TaskWidget extends WidgetType {
+  constructor(private checked: boolean, private toggle: () => void) { super(); }
+  eq(other: TaskWidget) { return other.checked === this.checked; }
+  toDOM() {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox'; checkbox.checked = this.checked; checkbox.className = 'cm-wysiwyg-task'; checkbox.setAttribute('aria-label', '切换任务状态');
+    checkbox.addEventListener('change', this.toggle);
+    return checkbox;
+  }
+}
 const headingLevels: [number, string][] = [[1, 'cm-wysiwyg-h1'], [2, 'cm-wysiwyg-h2'], [3, 'cm-wysiwyg-h3'], [4, 'cm-wysiwyg-h4'], [5, 'cm-wysiwyg-h5'], [6, 'cm-wysiwyg-h6']];
 const headingDecorations = new Map<number, Decoration>(headingLevels
   .map(([level, className]) => [level, Decoration.line({ class: className })] as [number, Decoration]));
@@ -30,24 +43,41 @@ const wysiwygExtension = ViewPlugin.fromClass(class {
 
 function buildWysiwygDecorations(view: EditorView) {
   const ranges: { from: number; to: number; decoration: Decoration }[] = [];
+  const tasks: { from: number; to: number; mark: number; checked: boolean }[] = [];
+  for (let number = 1; number <= view.state.doc.lines; number++) {
+    const line = view.state.doc.line(number); const match = /^(\s*)[-*+]\s+\[([ xX])\]\s+/.exec(line.text);
+    if (!line.text) ranges.push({ from: line.from, to: line.from, decoration: number === 2 ? wysiwygTitleGap : wysiwygBlank });
+    if (match) tasks.push({ from: line.from, to: line.from + match[0].length, mark: line.from + match[0].indexOf('[') + 1, checked: match[2].toLowerCase() === 'x' });
+  }
   syntaxTree(view.state).iterate({ enter(node) {
     const name = node.name;
-    if (name.endsWith('Mark') || name === 'URL' || name === 'LinkTitle') ranges.push({ from: node.from, to: node.to, decoration: wysiwygMark });
+    const hiddenByTask = tasks.some(task => node.from >= task.from && node.to <= task.to);
+    if (!hiddenByTask && (name.endsWith('Mark') || name === 'URL' || name === 'LinkTitle')) ranges.push({ from: node.from, to: node.to, decoration: wysiwygMark });
     if (name === 'StrongEmphasis') ranges.push({ from: node.from, to: node.to, decoration: wysiwygStrong });
     if (name === 'Emphasis' || name === 'Strikethrough') ranges.push({ from: node.from, to: node.to, decoration: wysiwygEmphasis });
     if (name === 'InlineCode') ranges.push({ from: node.from, to: node.to, decoration: wysiwygCode });
-    if (name === 'Link') ranges.push({ from: node.from, to: node.to, decoration: wysiwygLink });
+    if (name === 'Link' && !hiddenByTask) ranges.push({ from: node.from, to: node.to, decoration: wysiwygLink });
     if (name === 'FencedCode' || name === 'IndentedCode') ranges.push({ from: node.from, to: node.to, decoration: wysiwygBlockCode });
+    if (name === 'Blockquote') {
+      let line = view.state.doc.lineAt(node.from);
+      while (line.from <= node.to) {
+        ranges.push({ from: line.from, to: line.from, decoration: wysiwygQuote });
+        if (line.number >= view.state.doc.lines) break;
+        line = view.state.doc.line(line.number + 1);
+      }
+    }
     const heading = /(?:ATX|Setext)Heading([1-6])$/.exec(name);
     if (heading) {
       const line = view.state.doc.lineAt(node.from);
       ranges.push({ from: line.from, to: line.from, decoration: headingDecorations.get(Number(heading[1]))! });
     }
   }});
-  ranges.sort((a, b) => a.from - b.from || a.to - b.to);
-  const builder = new RangeSetBuilder<Decoration>();
-  for (const range of ranges) builder.add(range.from, range.to, range.decoration);
-  return builder.finish();
+  for (const task of tasks) {
+    ranges.push({ from: task.from, to: task.to, decoration: Decoration.replace({ widget: new TaskWidget(task.checked, () => {
+      view.dispatch({ changes: { from: task.mark, to: task.mark + 1, insert: task.checked ? ' ' : 'x' } }); view.focus();
+    }) }) });
+  }
+  return Decoration.set(ranges.map(range => range.decoration.range(range.from, range.to)), true);
 }
 
 export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref) {
@@ -97,7 +127,17 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
         if (!text) return false;
         editor.dispatch({ changes: { from: cursor - match[0].length, to: cursor, insert: text } }); return true;
       } }, ...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
-      EditorView.updateListener.of(update => { if (update.docChanged && !applying.current) current.current.onChange(update.state.doc.toString()); }),
+      EditorView.updateListener.of(update => {
+        if (update.docChanged && !applying.current) current.current.onChange(update.state.doc.toString());
+        if (update.selectionSet || update.docChanged) {
+          const range = update.state.selection.main;
+          if (range.empty || !current.current.wysiwyg) current.current.onSelectionChange(null);
+          else {
+            const start = update.view.coordsAtPos(range.from); const end = update.view.coordsAtPos(range.to);
+            current.current.onSelectionChange(start ? { left: (start.left + (end?.right || start.right)) / 2, top: Math.min(start.top, end?.top || start.top) - 48 } : null);
+          }
+        }
+      }),
       EditorView.domEventHandlers({
         scroll: (_event, editor) => { if (!syncedScroll.current) current.current.onScroll(editor.scrollDOM.scrollTop / Math.max(1, editor.scrollDOM.scrollHeight - editor.scrollDOM.clientHeight)); },
         paste: event => { const files = [...(event.clipboardData?.files || [])]; if (!files.length) return false; event.preventDefault(); current.current.onFiles(files); return true; },
@@ -112,6 +152,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
   }, [props.readOnly, props.path]);
   useEffect(() => {
     view.current?.dispatch({ effects: wysiwyg.current.reconfigure(props.wysiwyg ? wysiwygExtension : []) });
+    props.onSelectionChange(null);
   }, [props.wysiwyg]);
   useEffect(() => {
     const editor = view.current; if (!editor || editor.state.doc.toString() === props.content) return;
@@ -123,8 +164,8 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
     const editor = view.current; if (!editor) return;
     editor.dispatch({ effects: [theme.current.reconfigure(EditorView.theme({
       '&': { height: '100%', fontSize: `${props.settings.fontSize}px`, color: props.dark ? '#dedfe3' : '#333941', backgroundColor: 'transparent' },
-      '.cm-content': { fontFamily: props.settings.editorFont, lineHeight: String(props.settings.lineHeight), padding: '28px 0 90px' },
-      '.cm-line': { padding: '0 28px' }, '.cm-gutters': { backgroundColor: 'transparent', border: 'none', color: props.dark ? '#555c64' : '#c1c2c3', fontSize: '11px' },
+      '.cm-content': { fontFamily: props.settings.editorFont, lineHeight: String(props.settings.lineHeight), padding: props.wysiwyg ? '18px 0 90px' : '28px 0 90px', maxWidth: props.wysiwyg ? '720px' : 'none', margin: props.wysiwyg ? '0 auto' : '0' },
+      '.cm-line': { padding: props.wysiwyg ? '0' : '0 28px' }, '.cm-gutters': { display: props.wysiwyg ? 'none' : 'flex', backgroundColor: 'transparent', border: 'none', color: props.dark ? '#555c64' : '#c1c2c3', fontSize: '11px' },
       '.cm-gutterElement': { paddingLeft: '12px' }, '.cm-activeLine': { backgroundColor: props.dark ? '#ffffff04' : '#00000002' },
       '.cm-wysiwyg-mark': { color: 'transparent', fontSize: '0', display: 'inline-block', width: '0', overflow: 'hidden' },
       '.cm-wysiwyg-h1': { fontSize: '1.9em', fontWeight: '700' }, '.cm-wysiwyg-h2': { fontSize: '1.55em', fontWeight: '700' },
@@ -134,9 +175,13 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
       '.cm-wysiwyg-code': { fontFamily: 'Consolas, monospace', color: props.dark ? '#f5bd8d' : '#8a5533' },
       '.cm-wysiwyg-link': { color: props.dark ? '#8ed2c1' : '#80623f', textDecoration: 'underline' },
       '.cm-wysiwyg-block-code': { fontFamily: 'Consolas, monospace', backgroundColor: props.dark ? '#ffffff0b' : '#00000006' },
-      '.cm-cursor': { borderLeftColor: '#a5815b' }, '.cm-selectionBackground': { backgroundColor: '#bda27a40 !important' },
+      '.cm-wysiwyg-quote': { borderLeft: '2px solid #e76f51', paddingLeft: '26px', color: props.dark ? '#c4c0b9' : '#595550', fontStyle: 'italic' },
+      '.cm-wysiwyg-blank': { height: '36px', lineHeight: '36px' },
+      '.cm-wysiwyg-title-gap': { height: '20px', lineHeight: '20px' },
+      '.cm-wysiwyg-task': { width: '22px', height: '22px', margin: '0 13px 0 0', verticalAlign: '-4px', accentColor: '#e76f51', cursor: 'pointer' },
+      '.cm-cursor': { borderLeftColor: '#e76f51' }, '.cm-selectionBackground': { backgroundColor: '#fce9e2 !important' },
       '.cm-scroller': { overflow: 'auto' }, '.cm-search': { fontFamily: 'Segoe UI, sans-serif', fontSize: '13px' },
     }, { dark: props.dark })), wrapping.current.reconfigure(props.settings.wrap ? EditorView.lineWrapping : [])] });
-  }, [props.settings, props.dark, props.path]);
-  return <div className="editor-pane" ref={element} />;
+  }, [props.settings, props.dark, props.path, props.wysiwyg]);
+  return <div className={`editor-pane ${props.wysiwyg ? 'wysiwyg-editor' : ''}`} ref={element} />;
 });
