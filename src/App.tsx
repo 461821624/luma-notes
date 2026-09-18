@@ -5,6 +5,8 @@ import { Folder, FolderPlus, FilePlus2, Search, Settings2, PanelLeftClose, Panel
   Bold, Italic, Link, Code, Quote, ListTodo, Maximize2, Menu, ArrowUpDown, RotateCcw } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { check } from '@tauri-apps/plugin-updater';
 import { Editor, type EditorHandle } from './Editor';
 import { Preview, type PreviewHandle } from './Preview';
 import { defaults, desktop, request, SaveQueue, parentPath, baseName, type Document, type Note, type Settings, type Workspace } from './api';
@@ -61,7 +63,6 @@ export default function App() {
   const checkForUpdates = useCallback(async () => {
     if (!desktop) { notify('请在 Luma Notes Windows 安装版中检查更新'); return; }
     try {
-      const [{ check }, { relaunch }] = await Promise.all([import('@tauri-apps/plugin-updater'), import('@tauri-apps/plugin-process')]);
       const update = await check();
       if (!update) { notify('当前已是最新版本'); return; }
       if (!await confirm('发现 Luma Notes 更新', `新版本 ${update.version} 已发布，是否立即下载并安装？`)) return;
@@ -69,9 +70,9 @@ export default function App() {
       await update.downloadAndInstall();
       notify('更新已安装，正在重启 Luma Notes');
       await relaunch();
-    } catch (error) { const message = error instanceof Error ? error.message : String(error); fail(`检查更新失败：${message}`); notify('检查更新失败，请确认网络和发布源'); }
+    } catch (error) { const message = error instanceof Error ? error.message : String(error); notify(`检查更新失败：${message}`); }
     finally { setBusy(false); }
-  }, [fail, notify]);
+  }, [notify]);
   const prompt = (title: string, value: string, message?: string) => new Promise<string | null>(resolve => setDialog({ title, value, message, resolve }));
   const confirm = (title: string, message: string, danger = false) => new Promise<boolean>(resolve => setDialog({ title, message, danger, resolve: value => resolve(value !== null) }));
   const applyDocument = (value: Document) => {
@@ -303,7 +304,7 @@ export default function App() {
       {settingsTab === '编辑器' && <><h3>让写作更舒适</h3><Setting label="正文字体"><input value={settings.editorFont} onChange={e => setSettings(s => ({ ...s, editorFont: e.target.value }))}/></Setting><Setting label="字号"><input type="number" min="12" max="40" value={settings.fontSize} onChange={e => setSettings(s => ({ ...s, fontSize: Math.max(12, Math.min(40, Number(e.target.value))) }))}/></Setting><Setting label="行高"><input type="number" min="1.2" max="3" step="0.05" value={settings.lineHeight} onChange={e => setSettings(s => ({ ...s, lineHeight: Number(e.target.value) }))}/></Setting><Setting label="自动换行"><input type="checkbox" checked={settings.wrap} onChange={e => setSettings(s => ({ ...s, wrap: e.target.checked }))}/></Setting><p className="setting-hint">输入 /table、/task、/mermaid 等命令后按 Tab 展开模板。Ctrl+Shift+L 自动排版。</p></>}
       {settingsTab === '预览' && <><h3>阅读与图表</h3><Setting label="预览字体"><input value={settings.previewFont} onChange={e => setSettings(s => ({ ...s, previewFont: e.target.value }))}/></Setting><Setting label="预览宽度"><input type="number" min="400" max="1800" value={settings.previewWidth} onChange={e => setSettings(s => ({ ...s, previewWidth: Number(e.target.value) }))}/></Setting><Setting label="分栏位置"><select value={settings.splitDirection} onChange={e => setSettings(s => ({ ...s, splitDirection: e.target.value as 'row' | 'column' }))}><option value="row">右侧</option><option value="column">底部</option></select></Setting><Setting label="启用 PlantUML 服务"><input type="checkbox" checked={settings.plantumlEnabled} onChange={e => setSettings(s => ({ ...s, plantumlEnabled: e.target.checked }))}/></Setting><p className="setting-hint">启用后会将 PlantUML 图表内容发送到下方服务。其他公式、Mermaid 和思维导图在本地渲染。</p><Setting label="PlantUML 服务地址"><input value={settings.plantumlEndpoint} onChange={e => setSettings(s => ({ ...s, plantumlEndpoint: e.target.value }))}/></Setting></>}
       {settingsTab === '文件与附件' && <><h3>笔记始终是本地文件</h3><p className="storage-path">{workspace?.root || '尚未选择文件夹'}</p><button onClick={chooseWorkspace}>更改存储位置</button><div className="settings-buttons"><button onClick={() => void run(async () => { await flush(); const ws = await request<Workspace | null>('import_files'); if (ws) setWorkspace(ws); })}>导入 Markdown 文件</button><button onClick={() => void run(async () => { await flush(); const ws = await request<Workspace | null>('import_folder'); if (ws) setWorkspace(ws); })}>导入文件夹</button><button onClick={() => void run(async () => { await flush(); const result = await request<{ workspace: Workspace; note: Document } | null>('open_file'); if (result) { setWorkspace(result.workspace); applyDocument(result.note); setSettingsOpen(false); } })}>单独打开文件</button><button onClick={() => void run(async () => { const paths = await request<string[]>('orphan_candidates'); if (!paths.length) { notify('没有发现孤立附件'); return; } if (await confirm('清理孤立附件', `以下 ${paths.length} 个附件将移入回收站：\n${paths.join('\n')}`, true)) { for (const path of paths) await request('trash', { path }); notify('附件已移入回收站'); } })}>清理孤立附件</button></div><p className="setting-hint">如需同步，可选择 OneDrive 或坚果云的本地同步文件夹。软件不会上传笔记正文。</p></>}
-      {settingsTab === '关于' && <div className="about"><div className="about-mark">L</div><h2>Luma Notes</h2><p>Small thoughts. Bright ideas.</p><small>0.1.2 · Luma desktop</small><p>Local-first Markdown workspace.<br/>Your files stay yours.</p><button onClick={() => void checkForUpdates()}>检查更新</button></div>}
+      {settingsTab === '关于' && <div className="about"><div className="about-mark">L</div><h2>Luma Notes</h2><p>Small thoughts. Bright ideas.</p><small>0.1.3 · Luma desktop</small><p>Local-first Markdown workspace.<br/>Your files stay yours.</p><button onClick={() => void checkForUpdates()}>检查更新</button></div>}
     </div></div><footer>设置自动保存</footer></section></div>}
   </div>;
 }
