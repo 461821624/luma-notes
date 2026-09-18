@@ -21,6 +21,8 @@ git push origin main --tags
 
 推送 `v*` 标签后，`.github/workflows/publish.yml` 会在 Windows runner 上构建 NSIS 安装包、生成 `.sig` 签名和 `latest.json`，并上传到 GitHub Release。
 
+如果 GitHub Actions 因账号 billing 或 runner 限制无法启动，可在本机执行 `npm run tauri -- build` 后，把 `src-tauri/target/release/bundle/nsis/` 中的安装包和 `.sig`，以及对应的 `latest.json` 手动上传到同名 Release。
+
 ## 客户端更新
 
 安装版在“偏好设置 → 关于 → 检查更新”调用 GitHub Releases 的 `latest.json`。发现新版本后会下载签名安装包，完成后自动重启。
