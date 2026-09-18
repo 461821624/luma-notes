@@ -1,0 +1,5 @@
+node_modules/
+dist/
+work/
+src-tauri/target/
+*.log

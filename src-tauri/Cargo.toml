@@ -1,0 +1,37 @@
+[package]
+name = "miaoyan-windows"
+version = "0.1.0"
+edition = "2021"
+default-run = "miaoyan-windows"
+
+[lib]
+name = "miaoyan_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+rfd = "0.15"
+base64 = "0.22"
+trash = "5"
+url = "2"
+percent-encoding = "2"
+regex = "1"
+open = "5"
+ureq = { version = "3", default-features = false, features = ["json"] }
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-deep-link = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = "0.61"
