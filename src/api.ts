@@ -7,7 +7,7 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark'; language: string;
   editorFont: string; previewFont: string; interfaceFont: string; codeFont: string;
   fontSize: number; lineHeight: number; previewWidth: number; wrap: boolean;
-  mode: 'edit' | 'split' | 'preview'; splitDirection: 'row' | 'column';
+  mode: 'edit' | 'wysiwyg' | 'split' | 'preview'; splitDirection: 'row' | 'column';
   showSidebar: boolean; showList: boolean; buttons: 'always' | 'hover' | 'never';
   sidebarWidth: number; listWidth: number; pinned: string[];
   sort: 'modified' | 'created' | 'name'; ascending: boolean;
