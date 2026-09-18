@@ -2,7 +2,7 @@
 
 ---
 
-## 妙言 PPT 模式
+## Luma PPT 模式
 
 让演示文稿制作变得简单优雅
 
@@ -33,7 +33,7 @@ slideNumber: c/t
 ## 快速开始
 
 - 方法一：在文档中按 `Command + Option + P`
-- 方法二：右键点击文档选择「妙言 PPT」
+- 方法二：右键点击文档选择「Luma PPT」
 - 方法三：从菜单栏选择演示模式
 - 带有 `---` 分隔符的文档会自动识别
 - 按「回车」键预览幻灯片大纲
@@ -67,7 +67,7 @@ slideNumber: c/t
 
 ```swift [1|2-4|5-7|8]
 import SwiftUI
-struct MiaoYanApp: App {
+struct LumaApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -81,7 +81,7 @@ struct MiaoYanApp: App {
 
 ## 数学公式
 
-妙言在演示文稿中完美支持 LaTeX 数学公式：
+Luma在演示文稿中完美支持 LaTeX 数学公式：
 
 $$E = mc^2$$
 
@@ -155,7 +155,7 @@ $$\sum_{i=1}^{n} x_i = \frac{n(n+1)}{2}$$
 
 ---
 
-<!-- .slide: data-background-iframe="https://miaoyan.app/" -->
+<!-- .slide: data-background-iframe="https://luma.app/" -->
 <!-- .slide: data-background-interactive -->
 
 ---

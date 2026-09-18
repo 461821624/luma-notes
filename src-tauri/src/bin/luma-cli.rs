@@ -1,11 +1,11 @@
-use miaoyan_lib::files::{self, Store};
+use luma_lib::files::{self, Store};
 use serde_json::json;
 use std::path::PathBuf;
 
 fn execute() -> Result<(), String> {
     let mut args = std::env::args().skip(1).collect::<Vec<_>>();
     let appdata = std::env::var_os("APPDATA").ok_or("APPDATA 未设置")?;
-    let mut store = Store::new(PathBuf::from(appdata).join("app.miaoyan.windows.unofficial"))?;
+    let mut store = Store::new(PathBuf::from(appdata).join("app.luma.notes"))?;
     let _file_lock = store.lock()?;
     if args.first().map(String::as_str) == Some("--workspace") {
         if args.len() < 3 {
@@ -18,7 +18,7 @@ fn execute() -> Result<(), String> {
         store.root = Some(root);
     }
     let Some(command) = args.first().map(String::as_str) else {
-        return Err("用法: miaoyan-cli [--workspace 目录] list | search 关键词 | cat 路径 | new 路径 内容 | update 路径 内容 --revision SHA256 | open [路径]".into());
+        return Err("用法: luma-cli [--workspace 目录] list | search 关键词 | cat 路径 | new 路径 内容 | update 路径 内容 --revision SHA256 | open [路径]".into());
     };
     let arg = |i: usize| {
         args.get(i)
@@ -66,8 +66,15 @@ fn execute() -> Result<(), String> {
             println!("{}", store.save(arg(1)?, arg(2)?, arg(4)?)?);
         }
         "open" => {
-            let mut exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            exe.set_file_name("miaoyan-windows.exe");
+            let current = std::env::current_exe().map_err(|e| e.to_string())?;
+            let mut exe = current.with_file_name("luma-notes.exe");
+            if !exe.is_file() {
+                exe = current
+                    .parent()
+                    .and_then(|path| path.parent())
+                    .map(|path| path.join("luma-notes.exe"))
+                    .ok_or("找不到 Luma Notes 主程序")?;
+            }
             let mut process = std::process::Command::new(exe);
             if let Some(path) = args.get(1) {
                 process.arg(files::scoped(store.root()?, path, true)?);

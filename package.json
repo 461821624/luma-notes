@@ -1,11 +1,12 @@
 {
-  "name": "miaoyan-windows",
-  "version": "0.1.5",
+  "name": "luma-notes",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "tsc --noEmit && vite build",
+    "build:desktop": "npm run build && node scripts/build-cli.cjs",
     "test": "tsx --test tests/*.test.ts",
     "tauri": "tauri"
   },

@@ -64,7 +64,7 @@ pub fn picgo(store: &Store, payload: &Value) -> Result<Value> {
 mod tests {
     use super::*;
     use std::{
-        io::{Read, Write},
+        io::{BufRead, BufReader, Read, Write},
         net::TcpListener,
     };
     #[test]
@@ -86,9 +86,27 @@ mod tests {
             socket
                 .set_read_timeout(Some(Duration::from_secs(5)))
                 .unwrap();
-            let mut bytes = [0; 4096];
-            let n = socket.read(&mut bytes).unwrap();
-            assert!(String::from_utf8_lossy(&bytes[..n]).starts_with("POST /upload HTTP/1.1"));
+            let request = {
+                let mut reader = BufReader::new(&mut socket);
+                let mut request = String::new();
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    request.push_str(&line);
+                    if line == "\r\n" {
+                        break;
+                    }
+                }
+                let length = request
+                    .lines()
+                    .find_map(|line| line.strip_prefix("Content-Length: "))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(0);
+                let mut body = vec![0; length];
+                reader.read_exact(&mut body).unwrap();
+                request
+            };
+            assert!(request.starts_with("POST /upload HTTP/1.1"));
             let body = r#"{"success":true,"result":["https://images.example.test/test.png"]}"#;
             socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).unwrap();
         });

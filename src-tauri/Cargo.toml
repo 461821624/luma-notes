@@ -1,11 +1,11 @@
 [package]
-name = "miaoyan-windows"
-version = "0.1.5"
+name = "luma-notes"
+version = "0.1.6"
 edition = "2021"
-default-run = "miaoyan-windows"
+default-run = "luma-notes"
 
 [lib]
-name = "miaoyan_lib"
+name = "luma_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

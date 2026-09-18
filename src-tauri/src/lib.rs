@@ -161,7 +161,7 @@ fn native(store: &mut Store, action: &str, p: Value) -> Result<Value> {
                 return Err("不能导入工作区的父目录".into());
             }
             let staging = tempfile::Builder::new()
-                .prefix(".miaoyan-import-")
+                .prefix(".luma-import-")
                 .tempdir_in(store.root()?)
                 .map_err(ioerr)?;
             import_tree(&source, staging.path())?;
@@ -285,7 +285,7 @@ async fn request(
             .drain(..)
             .collect::<Vec<_>>();
         return tauri::async_runtime::spawn_blocking(move||{let mut store=state.lock().map_err(|_|"文件操作锁异常")?;
-            for value in pending.iter().skip(1){let path=if value.starts_with("miaoyan:"){let url=url::Url::parse(value).map_err(ioerr)?;if url.host_str()!=Some("open"){continue;}let Some((_,path))=url.query_pairs().find(|(k,_)|k=="path")else{continue};std::path::PathBuf::from(path.as_ref())}else{std::path::PathBuf::from(value)};
+            for value in pending.iter().skip(1){let path=if value.starts_with("luma:"){let url=url::Url::parse(value).map_err(ioerr)?;if url.host_str()!=Some("open"){continue;}let Some((_,path))=url.query_pairs().find(|(k,_)|k=="path")else{continue};std::path::PathBuf::from(path.as_ref())}else{std::path::PathBuf::from(value)};
                 if !path.is_file()||!path.extension().is_some_and(|e|e.eq_ignore_ascii_case("md")||e.eq_ignore_ascii_case("markdown")){continue;}
                 let path=path.canonicalize().map_err(ioerr)?;if let Some(root)=store.root.as_ref(){store.prefs["previousWorkspace"]=json!(root.to_string_lossy());}
                 store.choose(path.parent().ok_or("无效外部路径")?.to_path_buf())?;
@@ -352,5 +352,5 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![request])
         .run(tauri::generate_context!())
-        .expect("无法启动妙言 Windows");
+        .expect("无法启动Luma Windows");
 }

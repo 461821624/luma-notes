@@ -1,22 +1,22 @@
 /**
- * MiaoYan App Main Entry
+ * Luma App Main Entry
  */
 
-class MiaoYanApp {
+class LumaApp {
   constructor() {
     this.initialize();
   }
 
   initialize() {
     // Use common module for interactive checkboxes
-    if (window.MiaoYanCommon) {
-      MiaoYanCommon.setupInteractiveCheckboxes();
+    if (window.LumaCommon) {
+      LumaCommon.setupInteractiveCheckboxes();
     }
   }
 }
 
-MiaoYanCommon.onDOMReady(() => {
-  new MiaoYanApp();
+LumaCommon.onDOMReady(() => {
+  new LumaApp();
 });
 
-window.MiaoYanApp = MiaoYanApp;
+window.LumaApp = LumaApp;

@@ -317,7 +317,7 @@ impl Store {
         Ok(lock)
     }
     fn trash_dir(&self) -> Result<PathBuf> {
-        let dir = scoped(self.root()?, ".miaoyan-trash", false)?;
+        let dir = scoped(self.root()?, ".luma-trash", false)?;
         fs::create_dir_all(&dir).map_err(err)?;
         Ok(dir)
     }
@@ -505,7 +505,7 @@ impl Store {
                     f.sync_all().map_err(err)?;
                 } else {
                     if case_only {
-                        let temporary = source.with_file_name(format!(".miaoyan-rename-{}", now()));
+                        let temporary = source.with_file_name(format!(".luma-rename-{}", now()));
                         fs::rename(&source, &temporary).map_err(err)?;
                         if let Err(e) = fs::rename(&temporary, &target) {
                             let rollback = fs::rename(&temporary, &source);
@@ -524,7 +524,7 @@ impl Store {
             "trash" => {
                 let relative = field(&p, "path")?;
                 let source = scoped(self.root()?, relative, true)?;
-                if relative.split('/').any(|part| part == ".miaoyan-trash") {
+                if relative.split('/').any(|part| part == ".luma-trash") {
                     return Err("不能回收应用回收目录".into());
                 }
                 let folder = self.trash_dir()?;

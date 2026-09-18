@@ -36,22 +36,22 @@ note：`{path,name,content,revision,modified,created}`，时间为 Unix 毫秒�
 - 校验 Windows 名称、目录穿越、符号链接和 junction，目录扫描不跟随 reparse point。
 - 保存采用同目录临时文件、刷盘和原子替换；保存前核对 SHA-256 revision。外部修改冲突时保留磁盘内容，并备份本地编辑；已删除目标拒绝重新创建。
 - 历史在约五分钟变更间隔，以及恢复/冲突前保存；重命名和移动会复制相关历史。
-- 应用回收区位于工作区 `.miaoyan-trash`，同卷移动，普通列表和搜索排除；恢复不覆盖同名目标。
+- 应用回收区位于工作区 `.luma-trash`，同卷移动，普通列表和搜索排除；恢复不覆盖同名目标。
 - 目录导入先写临时目录，全部成功后移入；不跟随导入目录中的链接。
 - PicGo 只允许 HTTP loopback 地址，禁用代理和重定向；上传失败保留本地文件。实际远程图床由用户本机 PicGo 配置。
 
 ## Windows 能力
 
-Tauri 配置包含 Markdown 文件关联和 `miaoyan://open?path=...` 协议；单实例发送 `external-open` 事件，前端完成保存后再调用 `pending_external`。窗口大小和位置由 window-state 插件持久化，默认全局唤起 Ctrl+Alt+M，可配置或禁用。
+Tauri 配置包含 Markdown 文件关联和 `luma://open?path=...` 协议；单实例发送 `external-open` 事件，前端完成保存后再调用 `pending_external`。窗口大小和位置由 window-state 插件持久化，默认全局唤起 Ctrl+Alt+M，可配置或禁用。
 
 PDF 使用隐藏、无原生命令权限的 WebView2 窗口及 `ICoreWebView2_7::PrintToPdf`，等待原生完成回调并验证 `%PDF-`，再原子写入用户选定目标。前端须传入渲染完成且资源可访问的 HTML。单元测试不代表中文排版、长文、图表与字体的桌面导出验收。
 
-`miaoyan-cli.exe [--workspace 目录] list|search|cat|new|update|open` 与桌面共享文件实现。`update 路径 内容 --revision SHA256` 强制显式版本以避免覆盖；`open` 启动同目录桌面 EXE。
+`luma-cli.exe [--workspace 目录] list|search|cat|new|update|open` 与桌面共享文件实现。`update 路径 内容 --revision SHA256` 强制显式版本以避免覆盖；`open` 启动同目录桌面 EXE。
 
-在线更新没有配置专属发布源与签名密钥，明确返回未配置；安装包没有代码签名证书时不能宣称签名。图床服务、系统回收站、文件关联、协议、全局快捷键、窗口恢复和 PDF 的真实桌面验收须单列记录。
+在线更新使用 GitHub Releases 的签名清单；关于页可检查并安装新版本。安装包没有代码签名证书时不能宣称签名。图床服务、系统回收站、文件关联、协议、全局快捷键、窗口恢复和 PDF 的真实桌面验收须单列记录。
 
 ## 验证
 
 在项目本地 Rust 环境执行 `cargo test --manifest-path src-tauri/Cargo.toml`。定向测试覆盖目录穿越、Windows 保留名称、真实 Windows 符号链接越界、原子覆盖、外部编辑冲突、删除后拒绝保存、重命名保存生命周期、仅大小写重命名、回收恢复及本机 PicGo 请求。
 
-项目根目录的 `scripts/tauri.ps1 dev` / `build` 会设置 `work/toolchain` 中的 Rust 环境。
+项目根目录的 `scripts/tauri.ps1 dev` / `build` 会设置 `work/toolchain` 中的 Rust 环境；桌面构建会先生成并打包 `luma-cli` sidecar。

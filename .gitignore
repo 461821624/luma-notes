@@ -3,4 +3,5 @@ dist/
 work/
 docs/
 src-tauri/target/
+src-tauri/binaries/
 *.log

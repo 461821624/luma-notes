@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Luma Notes",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "identifier": "app.luma.notes",
-  "build": {"beforeDevCommand":"npm run dev","beforeBuildCommand":"npm run build","devUrl":"http://localhost:1420","frontendDist":"../dist"},
+  "build": {"beforeDevCommand":"npm run dev","beforeBuildCommand":"npm run build:desktop","devUrl":"http://localhost:1420","frontendDist":"../dist"},
   "app": {"windows":[{"label":"main","title":"Luma Notes","width":1320,"height":860,"minWidth":840,"minHeight":600}],"security":{"csp":"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob: https:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://tauri.localhost http://asset.localhost http://localhost:1420 ws://localhost:1420 https: http://127.0.0.1:36677; frame-src 'self' blob:; media-src 'self' asset: data: blob: https:; object-src 'none'"}},
-  "bundle": {"active":true,"targets":["nsis"],"createUpdaterArtifacts":true,"shortDescription":"Luma Notes 本地 Markdown 笔记","fileAssociations":[{"ext":["md","markdown"],"name":"Markdown 文档","role":"Editor"}],"windows":{"nsis":{"languages":["SimpChinese","English"],"displayLanguageSelector":true}}},
-  "plugins":{"deep-link":{"desktop":{"schemes":["miaoyan"]}},"updater":{"pubkey":"dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCQjYzMjA4QjhBOUJEMEIKUldRTHZhbTRDREsycTQyUkwrbjVHL1BJNzF6NnZKMU9CVHhUempnbkVkMENsbUJsL005eGpLNDYK","endpoints":["https://github.com/461821624/luma-notes/releases/latest/download/latest.json"],"windows":{"installMode":"passive"}}}
+  "bundle": {"active":true,"targets":["nsis"],"createUpdaterArtifacts":true,"externalBin":["binaries/luma-cli"],"shortDescription":"Luma Notes 本地 Markdown 笔记","fileAssociations":[{"ext":["md","markdown"],"name":"Markdown 文档","role":"Editor"}],"windows":{"nsis":{"languages":["SimpChinese","English"],"displayLanguageSelector":true}}},
+  "plugins":{"deep-link":{"desktop":{"schemes":["luma"]}},"updater":{"pubkey":"dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCQjYzMjA4QjhBOUJEMEIKUldRTHZhbTRDREsycTQyUkwrbjVHL1BJNzF6NnZKMU9CVHhUempnbkVkMENsbUJsL005eGpLNDYK","endpoints":["https://github.com/461821624/luma-notes/releases/latest/download/latest.json"],"windows":{"installMode":"passive"}}}
 }
